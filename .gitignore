@@ -1,0 +1,4 @@
+/libs/*
+.DS_Store
+/build/debug/*
+/build/release/*
