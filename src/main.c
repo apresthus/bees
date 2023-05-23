@@ -8,6 +8,7 @@
 
 //TODO: Open files & save files
 //TODO: Ability to edit text files (Duh!)
+//TODO: Externalize Editor config.
 //TODO: Add line numbers
 //TODO: OpenGL???
 //TODO: Cursor
@@ -32,7 +33,7 @@ typedef struct color_T{
     uint8_t g;
     uint8_t b;
     uint8_t a;
-}color;
+}color;  //TODO: Probably want to have a RGB, HSL and HSV color structs
 typedef enum EditorMode_T{
     COMMAND,
     INSERT
