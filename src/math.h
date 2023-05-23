@@ -32,7 +32,7 @@ Vec2 vec2_add(Vec2 a, Vec2 b){
     return vec2(a.x + b.x, a.y + b.y);
 }
 Vec2 vec2_sub(Vec2 a, Vec2 b){
-    return vec2_add(a, vec2s(-1.0f));
+    return vec2(a.x - b.x, a.y - b.y);
 }
 Vec2 vec2_mul(Vec2 a, Vec2 b){
     return vec2(a.x * b.x, a.y * b.y);
