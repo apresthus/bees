@@ -4,24 +4,27 @@
 *
 */
 
-
 #include <stdio.h>
 #include <SDL.h>
 #include <stdbool.h>
 #include <stdint.h>
-
-
-void handle_input(SDL_Keysym key_symbol);
-
-//editor modes either COMMAND or INSERT
+typedef struct color_T{
+    uint8_t r;
+    uint8_t g;
+    uint8_t b;
+    uint8_t a;
+}color;
 typedef enum EditorMode_T{
     COMMAND,
     INSERT
 }EditorMode;
 
 typedef struct EditorBuffer_T{
+    int id;
     char *filename;
     char *buffer;
+    float posX;
+    float posY;
     int cursorX;
     int cursorY;
     int cursorWidth;
@@ -29,6 +32,7 @@ typedef struct EditorBuffer_T{
     int cursorBlinkSpeed;
     int bufferWidth;
     int bufferHeight;
+    color bufferColor;
     EditorMode mode;
 }EditorBuffer;
 
@@ -38,11 +42,15 @@ typedef struct EditorConfig_T{
     int cursorWidth;
     int cursorHeight;
     int cursorBlinkSpeed;
-
+    int bufferCount;
     int windowWidth;
     int windowHeight;
     EditorMode mode;
     EditorBuffer *buffers;
+    color statusLineColor;
+    color commandLineColor;
+    color tabColor;
+    color frameColor;
 
 }EditorConfig;
 
@@ -56,10 +64,92 @@ static EditorConfig editorConfig = {
     .cursorBlinkSpeed = 500,
     .windowWidth = 1024,
     .windowHeight = 768,
-    .mode = COMMAND
+    .mode = COMMAND,
+    .statusLineColor = {
+        .r = 0,
+        .g = 0,
+        .b = 0,
+        .a = 255
+    },
+    .commandLineColor = {
+        .r = 150,
+        .g = 0,
+        .b = 180,
+        .a = 255
+    },
+    .tabColor = {
+        .r = 0,
+        .g = 0,
+        .b = 0,
+        .a = 255
+    },
+    .frameColor = {
+        .r = 187,
+        .g = 175,
+        .b = 161,
+        .a = 255
+    }
 };
+void handle_input(SDL_Keysym key_symbol);
+void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig);
+void draw_cursor(SDL_Renderer *ren, EditorConfig *editorConfig);
+void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig);
+void draw_buffer(SDL_Renderer *ren, EditorBuffer *buffer);
+void drawCommandLine(SDL_Renderer *ren, EditorConfig *editorConfig);
+
 
 int main(void){
+
+EditorBuffer buffer = {
+    .id = 0,
+    .filename = "test.txt",
+    .buffer = "test",
+    .cursorX = 0,
+    .cursorY = 0,
+    .posX = 0,
+    .posY = 0,
+    .cursorWidth = 1,
+    .cursorHeight = 1,
+    .cursorBlinkSpeed = 500,
+    .bufferWidth = 400,
+    .bufferHeight = 400,
+    .mode = COMMAND,
+    .bufferColor = {
+        .r = 23,
+        .g = 23,
+        .b = 23,
+        .a = 255
+    }
+};
+
+EditorBuffer buffer2 = {
+    .id = 1,
+    .filename = "test2.txt",
+    .buffer = "test2",
+    .cursorX = 0,
+    .cursorY = 0,
+    .posX = 0,
+    .posY = 0,
+    .cursorWidth = 1,
+    .cursorHeight = 1,
+    .cursorBlinkSpeed = 500,
+    .bufferWidth = 0,
+    .bufferHeight = 0,
+    .mode = COMMAND,
+    .bufferColor = {
+        .r = 23,
+        .g = 23,
+        .b = 23,
+        .a = 255
+    }
+};
+
+editorConfig.buffers = malloc(sizeof(EditorBuffer) * 1);
+editorConfig.bufferCount = 1;
+
+editorConfig.buffers[0] = buffer;
+//editorConfig.buffers[1] = buffer2;
+
 
 if (SDL_Init(SDL_INIT_VIDEO) != 0){
     printf("SDL_Init Error: %s\n", SDL_GetError());
@@ -103,8 +193,13 @@ while (!quit){
             }
             break;
     }
-    SDL_RenderClear(ren);
-    SDL_RenderPresent(ren);
+
+         SDL_SetRenderDrawColor(ren, 0, 0, 0, 255); 
+         SDL_RenderClear(ren);
+         draw_editor(ren, &editorConfig);
+         drawCommandLine(ren, &editorConfig);
+         SDL_RenderPresent(ren);
+
 }
 
 SDL_DestroyRenderer(ren);
@@ -120,6 +215,75 @@ void open_buffer(char *filename){
 
 
 }
+
+
+void draw_cursor(SDL_Renderer *ren, EditorConfig *editorConfig){
+    SDL_Rect cursor = {
+        .x = editorConfig->cursorX,
+        .y = editorConfig->cursorY,
+        .w = editorConfig->cursorWidth,
+        .h = editorConfig->cursorHeight
+    };
+    SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
+    SDL_RenderFillRect(ren, &cursor);
+}
+
+
+void draw_buffer(SDL_Renderer *ren, EditorBuffer *buffer){
+    SDL_Rect bufferRect = {
+        .x = buffer->posX,
+        .y = buffer->posY,
+        .w = buffer->bufferWidth,
+        .h = buffer->bufferHeight,
+    
+    };
+
+    SDL_SetRenderDrawColor(ren, buffer->bufferColor.r, buffer->bufferColor.g, buffer->bufferColor.b, buffer->bufferColor.a);
+    SDL_RenderFillRect(ren, &bufferRect);
+    draw_cursor(ren, &editorConfig);
+}
+
+void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig) {
+   
+    int bufferWidth = editorConfig->windowWidth / editorConfig->bufferCount;
+    int bufferHeight = editorConfig->windowHeight;
+
+    for (int i = 0; i < editorConfig->bufferCount; i++) {
+        EditorBuffer *buffer = &editorConfig->buffers[i];
+        int bufferX = i * bufferWidth;
+        int bufferY = 0;
+
+        // draw diving line bwtween buffers
+        SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
+        SDL_RenderDrawLine(ren, bufferX, bufferY, bufferX, bufferHeight);
+
+        // Set the buffer position and size
+        buffer->bufferWidth = bufferWidth;
+        buffer->bufferHeight = bufferHeight - 20;
+        buffer->cursorX = bufferX + buffer->cursorX;
+        buffer->cursorY = bufferY + buffer->cursorY;
+        buffer->posX = bufferX;
+        buffer->posY = bufferY;
+
+        // Draw the buffer
+        draw_buffer(ren, buffer);
+    }
+   
+
+
+}
+
+void drawCommandLine(SDL_Renderer *ren, EditorConfig *editorConfig){
+    SDL_Rect commandLine = {
+        .x = 0,
+        .y = editorConfig->windowHeight - 20,
+        .w = editorConfig->windowWidth,
+        .h = 20
+    };
+    SDL_SetRenderDrawColor(ren, editorConfig->commandLineColor.r, editorConfig->commandLineColor.g, editorConfig->commandLineColor.b, editorConfig->commandLineColor.a);
+    SDL_RenderFillRect(ren, &commandLine);
+}
+
 
 
 void handle_input(SDL_Keysym key_symbol){
