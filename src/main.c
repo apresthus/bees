@@ -7,6 +7,7 @@
 // This is a "in the evenings when I feel like it" kind of project.
 
 //TODO: Open files & save files
+//TODO: Ability to edit text files (Duh!)
 //TODO: Add line numbers
 //TODO: OpenGL???
 //TODO: Cursor
