@@ -37,9 +37,7 @@ Vec2 vec2_sub(Vec2 a, Vec2 b){
 Vec2 vec2_mul(Vec2 a, Vec2 b){
     return vec2(a.x * b.x, a.y * b.y);
 }
-Vec2 vec2_div(Vec2 a, Vec2 b){
-    return vec2(a.x / b.x, a.y / b.y);
-}
+
 Vec2 vec2_div(Vec2 a, Vec2 b){
     return vec2(a.x / b.x, a.y / b.y);
 }

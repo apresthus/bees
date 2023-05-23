@@ -4,10 +4,28 @@
 *
 */
 
+// This is a "in the evenings when I feel like it" kind of project.
+
+//TODO: Open files & save files
+//TODO: Add line numbers
+//TODO: OpenGL???
+//TODO: Cursor
+//TODO: Support TrueType fonts
+//TODO: Add syntax highlighting / lexer parser
+//TODO: Prefix tree for autocompletion / discovery of files
+//TODO: Add ability to open terminal in place of buffer
+//TODO: Dynamic layout of buffers
+//TODO: Implement concept of workspaces / projects and save its configuration
+
+
+
+
+
 #include <stdio.h>
 #include <SDL.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "bees_math.h"
 typedef struct color_T{
     uint8_t r;
     uint8_t g;
@@ -51,6 +69,7 @@ typedef struct EditorConfig_T{
     color commandLineColor;
     color tabColor;
     color frameColor;
+    color lineNumbersPanelColor;
 
 }EditorConfig;
 
@@ -88,6 +107,12 @@ static EditorConfig editorConfig = {
         .g = 175,
         .b = 161,
         .a = 255
+    },
+    .lineNumbersPanelColor = {
+        .r = 0,
+        .g = 0,
+        .b = 0,
+        .a = 255
     }
 };
 void handle_input(SDL_Keysym key_symbol);
@@ -96,6 +121,10 @@ void draw_cursor(SDL_Renderer *ren, EditorConfig *editorConfig);
 void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig);
 void draw_buffer(SDL_Renderer *ren, EditorBuffer *buffer);
 void drawCommandLine(SDL_Renderer *ren, EditorConfig *editorConfig);
+void drawLineNumbersPanel(SDL_Renderer *ren, EditorConfig *editorConfig, Vec2 pos);
+void open_buffer (EditorConfig *editorConfig, char *filename);
+void save_buffer (EditorConfig *editorConfig, char *filename);
+void recalculate_layout(EditorConfig *editorConfig);
 
 
 int main(void){
@@ -209,14 +238,6 @@ SDL_Quit();
     return 0;
 }
 
-
-void open_buffer(char *filename){
-
-
-
-}
-
-
 void draw_cursor(SDL_Renderer *ren, EditorConfig *editorConfig){
     SDL_Rect cursor = {
         .x = editorConfig->cursorX,
@@ -250,7 +271,7 @@ void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig) {
 
     for (int i = 0; i < editorConfig->bufferCount; i++) {
         EditorBuffer *buffer = &editorConfig->buffers[i];
-        int bufferX = i * bufferWidth;
+        int bufferX = i * bufferWidth+50;
         int bufferY = 0;
 
         // draw diving line bwtween buffers
@@ -258,15 +279,16 @@ void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig) {
         SDL_RenderDrawLine(ren, bufferX, bufferY, bufferX, bufferHeight);
 
         // Set the buffer position and size
-        buffer->bufferWidth = bufferWidth;
+        buffer->bufferWidth = bufferWidth-50;
         buffer->bufferHeight = bufferHeight - 20;
         buffer->cursorX = bufferX + buffer->cursorX;
         buffer->cursorY = bufferY + buffer->cursorY;
         buffer->posX = bufferX;
         buffer->posY = bufferY;
-
+        Vec2 bufferpos = vec2(bufferX, bufferY);
         // Draw the buffer
         draw_buffer(ren, buffer);
+         drawLineNumbersPanel( ren,  editorConfig, bufferpos);
     }
    
 
@@ -282,6 +304,17 @@ void drawCommandLine(SDL_Renderer *ren, EditorConfig *editorConfig){
     };
     SDL_SetRenderDrawColor(ren, editorConfig->commandLineColor.r, editorConfig->commandLineColor.g, editorConfig->commandLineColor.b, editorConfig->commandLineColor.a);
     SDL_RenderFillRect(ren, &commandLine);
+}
+
+void drawLineNumbersPanel(SDL_Renderer *ren, EditorConfig *editorConfig, Vec2 bufferpos){
+    SDL_Rect lineNumbersPanel = {
+        .x = 0,
+        .y = 0,
+        .w = 50,
+        .h = editorConfig->windowHeight
+    };
+    SDL_SetRenderDrawColor(ren, editorConfig->lineNumbersPanelColor.r, editorConfig->lineNumbersPanelColor.g, editorConfig->lineNumbersPanelColor.b, editorConfig->lineNumbersPanelColor.a);
+    SDL_RenderFillRect(ren, &lineNumbersPanel);
 }
 
 
