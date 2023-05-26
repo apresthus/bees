@@ -1,4 +1,9 @@
-/libs/*
+/libs/SDL2
+/libs/SDL2_TTF
+/fonts/*
 .DS_Store
 /build/debug/*
 /build/release/*
+/.vscode/*
+/data/*
+

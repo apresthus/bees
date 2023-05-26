@@ -20,14 +20,15 @@
 //TODO: Implement concept of workspaces / projects and save its configuration
 
 
-
-
-
 #include <stdio.h>
 #include <SDL.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include "bees_math.h"
+#include <SDL2/SDL_ttf.h>
+#define SV_IMPLEMENTATION
+#include "../libs/StringView/sv.h"
+
 typedef struct color_T{
     uint8_t r;
     uint8_t g;
@@ -65,13 +66,16 @@ typedef struct EditorConfig_T{
     int bufferCount;
     int windowWidth;
     int windowHeight;
+    char *titleBar;
     EditorMode mode;
     EditorBuffer *buffers;
+    EditorBuffer *activeBuffer;
     color statusLineColor;
     color commandLineColor;
     color tabColor;
     color frameColor;
     color lineNumbersPanelColor;
+    TTF_Font *font;
 
 }EditorConfig;
 
@@ -115,19 +119,207 @@ static EditorConfig editorConfig = {
         .g = 0,
         .b = 0,
         .a = 255
-    }
+    },
+    .titleBar = "Bees -> scratch buffer (not saved)"
 };
-void handle_input(SDL_Keysym key_symbol);
+void handle_input(SDL_Keysym key_symbo, SDL_Event event);
 void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig);
 void draw_cursor(SDL_Renderer *ren, EditorConfig *editorConfig);
 void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig);
 void draw_buffer(SDL_Renderer *ren, EditorBuffer *buffer);
-void drawCommandLine(SDL_Renderer *ren, EditorConfig *editorConfig);
+void draw_text(SDL_Renderer *ren, EditorBuffer *buffer ,Vec2 pos, char *text);
+void draw_char(SDL_Renderer *ren, EditorBuffer *buffer, char c, Vec2 pos);
+void draw_status_line(SDL_Renderer *ren, EditorConfig *editorConfig);
 void drawLineNumbersPanel(SDL_Renderer *ren, EditorConfig *editorConfig, Vec2 pos);
-void open_buffer (EditorConfig *editorConfig, char *filename);
+bool open_buffer (EditorConfig *editorConfig, char *filename, EditorBuffer *_buffer);
 void save_buffer (EditorConfig *editorConfig, char *filename);
 void recalculate_layout(EditorConfig *editorConfig);
+void loadFonts();
 
+
+
+
+
+void draw_cursor(SDL_Renderer *ren, EditorConfig *editorConfig){
+    SDL_Rect cursor = {
+        .x = editorConfig->cursorX,
+        .y = editorConfig->cursorY,
+        .w = editorConfig->cursorWidth,
+        .h = editorConfig->cursorHeight
+    };
+    SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
+    SDL_RenderFillRect(ren, &cursor);
+}
+
+
+void draw_buffer(SDL_Renderer *ren, EditorBuffer *buffer){
+    SDL_Rect bufferRect = {
+        .x = buffer->posX,
+        .y = buffer->posY,
+        .w = buffer->bufferWidth,
+        .h = buffer->bufferHeight,
+    
+    };
+
+    SDL_SetRenderDrawColor(ren, buffer->bufferColor.r, buffer->bufferColor.g, buffer->bufferColor.b, buffer->bufferColor.a);
+    SDL_RenderFillRect(ren, &bufferRect);
+    draw_cursor(ren, &editorConfig);
+}
+
+void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig) {
+   
+    int bufferWidth = editorConfig->windowWidth / editorConfig->bufferCount;
+    int bufferHeight = editorConfig->windowHeight;
+
+    for (int i = 0; i < editorConfig->bufferCount; i++) {
+        EditorBuffer *buffer = &editorConfig->buffers[i];
+        int bufferX = i * bufferWidth+50;
+        int bufferY = 0;
+
+        // draw diving line bwtween buffers
+        SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
+        SDL_RenderDrawLine(ren, bufferX, bufferY, bufferX, bufferHeight);
+
+        // Set the buffer position and size
+        buffer->bufferWidth = bufferWidth-50;
+        buffer->bufferHeight = bufferHeight - 20;
+        buffer->cursorX = bufferX + buffer->cursorX;
+        buffer->cursorY = bufferY + buffer->cursorY;
+        buffer->posX = bufferX;
+        buffer->posY = bufferY;
+        Vec2 bufferpos = vec2(bufferX, bufferY);
+        // Draw the buffer
+        draw_buffer(ren, buffer);
+         drawLineNumbersPanel( ren,  editorConfig, bufferpos);
+    }
+   
+
+
+}
+
+void draw_status_line(SDL_Renderer *ren, EditorConfig *_editorConfig){
+    SDL_Rect commandLine = {
+        .x = 0,
+        .y = editorConfig.windowHeight - 20,
+        .w = editorConfig.windowWidth,
+        .h = 20
+    };
+    SDL_SetRenderDrawColor(ren, editorConfig.commandLineColor.r, editorConfig.commandLineColor.g, editorConfig.commandLineColor.b, editorConfig.commandLineColor.a);
+    SDL_RenderFillRect(ren, &commandLine);
+    char* string = "";
+    if (editorConfig.mode == COMMAND){
+        string = "-COMMAND-";
+    }
+    else{
+        string = "-INSERT-";
+    }
+    SDL_Color color = {255,255,255,255};
+     SDL_Surface *surface = TTF_RenderUTF8_Solid(editorConfig.font, string, color);
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(ren, surface);
+    SDL_Rect rect = {
+        .x = 25,
+        .y = editorConfig.windowHeight - 19,
+        .w = surface->w,
+        .h = surface->h
+    };
+    SDL_RenderCopy(ren, texture, NULL, &rect);
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+    
+}
+
+void drawLineNumbersPanel(SDL_Renderer *ren, EditorConfig *editorConfig, Vec2 bufferpos){
+    SDL_Rect lineNumbersPanel = {
+        .x = 0,
+        .y = 0,
+        .w = 50,
+        .h = editorConfig->windowHeight
+    };
+    SDL_SetRenderDrawColor(ren, editorConfig->lineNumbersPanelColor.r, editorConfig->lineNumbersPanelColor.g, editorConfig->lineNumbersPanelColor.b, editorConfig->lineNumbersPanelColor.a);
+    SDL_RenderFillRect(ren, &lineNumbersPanel);
+}
+
+bool open_buffer (EditorConfig *editorConfig, char *filename, EditorBuffer *_buffer){
+
+    FILE *file  = fopen("/Users/apresthus/Dev/Bees/data/test.txt", "r");
+    if (file == NULL){
+        printf("Error opening file: %s\n", filename);
+        return false;
+        exit(1);
+
+    }
+
+    fseek(file, 0, SEEK_END);
+    long fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char *buffer = malloc(fileSize + 1);
+    fread(buffer, fileSize, 1, file);
+    fclose(file);
+
+    buffer[fileSize] = '\0';
+
+    _buffer->buffer = buffer;
+    _buffer->cursorX = 0;
+    _buffer->cursorY = 0;
+
+    return true;
+}
+
+
+void loadFonts(){
+    editorConfig.font = TTF_OpenFont("../../fonts/FiraMono-Regular.ttf", 16);
+    if (editorConfig.font == NULL){
+        printf("TTF_OpenFont Error: %s\n", TTF_GetError());
+        exit(1);
+    }
+}
+
+void draw_text(SDL_Renderer *ren, EditorBuffer *buffer ,Vec2 pos, char *text){
+
+    SDL_Color color = {255, 255, 0, 255};
+    SDL_Surface *surface = TTF_RenderUTF8_Solid_Wrapped(editorConfig.font, text, color, 0);
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(ren, surface);
+    SDL_Rect rect = {
+        .x = pos.x,
+        .y = pos.y+18,
+        .w = surface->w,
+        .h = surface->h
+    };
+    SDL_RenderCopy(ren, texture, NULL, &rect);
+    SDL_FreeSurface(surface);
+    SDL_DestroyTexture(texture);
+}   
+
+void handle_input(SDL_Keysym key_symbol, SDL_Event event){
+
+    switch (key_symbol.sym)
+    {
+    case SDLK_ESCAPE:
+        editorConfig.mode = COMMAND;
+      
+        break;
+    case SDLK_i:
+    if(editorConfig.mode == COMMAND){ 
+        editorConfig.mode = INSERT;
+;
+        };
+        
+    break;
+
+    case SDL_TEXTINPUT:{
+        if (editorConfig.mode == INSERT){
+            char *text = event.text.text;
+            printf("%s", text);        }
+
+    }
+    
+    default:
+        //    draw_char();
+        break;
+    }
+
+}
 
 int main(void){
 
@@ -187,6 +379,14 @@ if (SDL_Init(SDL_INIT_VIDEO) != 0){
     return 1;
 }
 
+if (TTF_Init() != 0){
+    printf("TTF_Init Error: %s\n", TTF_GetError());
+    return 1;
+}
+
+loadFonts();
+
+
 SDL_Window *win = SDL_CreateWindow("Bees - >", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, editorConfig.windowWidth, editorConfig.windowHeight, SDL_WINDOW_RESIZABLE);
 
 if (win == NULL){
@@ -215,12 +415,14 @@ while (!quit){
             quit = true;
             break;
         case SDL_KEYDOWN:
-            handle_input(event.key.keysym);
+            handle_input(event.key.keysym, event);
             break;
         case SDL_WINDOWEVENT:
             if (event.window.event == SDL_WINDOWEVENT_RESIZED){
                 editorConfig.windowWidth = event.window.data1;
                 editorConfig.windowHeight = event.window.data2;
+
+            //    recalculate_layout(&editorConfig);
             }
             break;
     }
@@ -228,8 +430,14 @@ while (!quit){
          SDL_SetRenderDrawColor(ren, 0, 0, 0, 255); 
          SDL_RenderClear(ren);
          draw_editor(ren, &editorConfig);
-         drawCommandLine(ren, &editorConfig);
+         draw_status_line(ren, &editorConfig);
+         if (open_buffer(&editorConfig, "../../data/test.txt", &buffer) != true){
+                printf("error opening buffer\n");
+         }
+         editorConfig.activeBuffer = &buffer;
+         draw_text(ren, &buffer, (Vec2){.x = buffer.posX+70, .y = buffer.posY +10}, buffer.buffer);
          SDL_RenderPresent(ren);
+         SDL_SetWindowTitle(win,editorConfig.titleBar);
 
 }
 
@@ -238,105 +446,4 @@ SDL_DestroyWindow(win);
 SDL_Quit();
 
     return 0;
-}
-
-void draw_cursor(SDL_Renderer *ren, EditorConfig *editorConfig){
-    SDL_Rect cursor = {
-        .x = editorConfig->cursorX,
-        .y = editorConfig->cursorY,
-        .w = editorConfig->cursorWidth,
-        .h = editorConfig->cursorHeight
-    };
-    SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
-    SDL_RenderFillRect(ren, &cursor);
-}
-
-
-void draw_buffer(SDL_Renderer *ren, EditorBuffer *buffer){
-    SDL_Rect bufferRect = {
-        .x = buffer->posX,
-        .y = buffer->posY,
-        .w = buffer->bufferWidth,
-        .h = buffer->bufferHeight,
-    
-    };
-
-    SDL_SetRenderDrawColor(ren, buffer->bufferColor.r, buffer->bufferColor.g, buffer->bufferColor.b, buffer->bufferColor.a);
-    SDL_RenderFillRect(ren, &bufferRect);
-    draw_cursor(ren, &editorConfig);
-}
-
-void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig) {
-   
-    int bufferWidth = editorConfig->windowWidth / editorConfig->bufferCount;
-    int bufferHeight = editorConfig->windowHeight;
-
-    for (int i = 0; i < editorConfig->bufferCount; i++) {
-        EditorBuffer *buffer = &editorConfig->buffers[i];
-        int bufferX = i * bufferWidth+50;
-        int bufferY = 0;
-
-        // draw diving line bwtween buffers
-        SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
-        SDL_RenderDrawLine(ren, bufferX, bufferY, bufferX, bufferHeight);
-
-        // Set the buffer position and size
-        buffer->bufferWidth = bufferWidth-50;
-        buffer->bufferHeight = bufferHeight - 20;
-        buffer->cursorX = bufferX + buffer->cursorX;
-        buffer->cursorY = bufferY + buffer->cursorY;
-        buffer->posX = bufferX;
-        buffer->posY = bufferY;
-        Vec2 bufferpos = vec2(bufferX, bufferY);
-        // Draw the buffer
-        draw_buffer(ren, buffer);
-         drawLineNumbersPanel( ren,  editorConfig, bufferpos);
-    }
-   
-
-
-}
-
-void drawCommandLine(SDL_Renderer *ren, EditorConfig *editorConfig){
-    SDL_Rect commandLine = {
-        .x = 0,
-        .y = editorConfig->windowHeight - 20,
-        .w = editorConfig->windowWidth,
-        .h = 20
-    };
-    SDL_SetRenderDrawColor(ren, editorConfig->commandLineColor.r, editorConfig->commandLineColor.g, editorConfig->commandLineColor.b, editorConfig->commandLineColor.a);
-    SDL_RenderFillRect(ren, &commandLine);
-}
-
-void drawLineNumbersPanel(SDL_Renderer *ren, EditorConfig *editorConfig, Vec2 bufferpos){
-    SDL_Rect lineNumbersPanel = {
-        .x = 0,
-        .y = 0,
-        .w = 50,
-        .h = editorConfig->windowHeight
-    };
-    SDL_SetRenderDrawColor(ren, editorConfig->lineNumbersPanelColor.r, editorConfig->lineNumbersPanelColor.g, editorConfig->lineNumbersPanelColor.b, editorConfig->lineNumbersPanelColor.a);
-    SDL_RenderFillRect(ren, &lineNumbersPanel);
-}
-
-
-
-void handle_input(SDL_Keysym key_symbol){
-
-    switch (key_symbol.sym)
-    {
-    case SDLK_ESCAPE:
-        editorConfig.mode = COMMAND;
-        break;
-    case SDLK_i:
-    if(editorConfig.mode == COMMAND){ 
-        editorConfig.mode = INSERT;
-        };
-        
-    break;
-    
-    default:
-        break;
-    }
-
 }
