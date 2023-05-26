@@ -6,18 +6,22 @@
 
 // This is a "in the evenings when I feel like it" kind of project.
 
-//TODO: Open files & save files
+//Motivation: Bees (Because Everything Else Sucks), not really, but I just like the idea of my own editor built from almost scratch (will probably ditch  SDL at some point
+//or it will just be a glorified OPENGL initializer, which is fine.).
+
+//TODO: Open files & save files - kinda able to open files now.
 //TODO: Ability to edit text files (Duh!)
-//TODO: Externalize Editor config.
+//TODO: Externalize Editor config. Do I want my own format or use something like Lua or whatever?, probably the former.
 //TODO: Add line numbers
-//TODO: OpenGL???
+//TODO: OpenGL??? - At this point probably, if I want to do some fancy experimental GUI stuff.
 //TODO: Cursor
-//TODO: Support TrueType fonts
-//TODO: Add syntax highlighting / lexer parser
-//TODO: Prefix tree for autocompletion / discovery of files
-//TODO: Add ability to open terminal in place of buffer
+//TODO: Support TrueType fonts - kinda done.
+//TODO: Add syntax highlighting / lexer parser - No LSP. I want to do this myself. Also just limited intellisense as I feel like too much of it actually makes me a worse programmer.
+//TODO: Prefix tree for autocompletion / discovery of files. I've done this many times before, so it should be easy.
+//TODO: Add ability to open terminal in place of buffer. - Probably just a terminal emulator in a buffer.
 //TODO: Dynamic layout of buffers
 //TODO: Implement concept of workspaces / projects and save its configuration
+//TODO: Integration of compiling and debugging of especially C projects. - lldb with some kind of GUI?
 
 
 #include <stdio.h>
