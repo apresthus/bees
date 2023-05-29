@@ -1,0 +1,24 @@
+@ this is a comment
+
+  .projName = "Test Project"
+  .srcDir = "./"
+  .defaultFont = "FiraMono-Regular"
+  .defaultFontSize = 16
+  .defaultFontColor = #ada193
+  .defaultBackgroundColor = #171717
+  .language = C
+  .cursorX = 0
+  .cursorY = 0
+  .cursorWidth = 1
+  .cursorHeight = 1
+  .cursorBlinkSpeed = 500
+  .windowWidth = 1024
+  .windowHeight = 768
+  .statusLineColor = #c6c6c6
+  .commandLineColor = #000000
+  .tabColor = #000000
+  .frameColor = #ffb974
+  .lineNumbersPanelColor = #ffb974
+  .titleBar = "Bees -> scratch buffer (not saved)"
+
+]

@@ -11,7 +11,7 @@
 
 //TODO: Open files & save files - kinda able to open files now.
 //TODO: Ability to edit text files (Duh!)
-//TODO: Externalize Editor config. Do I want my own format or use something like Lua or whatever?, probably the former.
+//TODO: Externalize Editor config. Do I want my own format or use something like Lua or whatever?, probably the former. -- DONE, some refinement needed, like creating a config file if it doesn't exist.
 //TODO: Add line numbers
 //TODO: OpenGL??? - At this point probably, if I want to do some fancy experimental GUI stuff.
 //TODO: Cursor
@@ -71,6 +71,8 @@ typedef struct EditorConfig_T{
     int windowWidth;
     int windowHeight;
     char *titleBar;
+    color defaultFontColor;
+    color defaultBackgroundColor;
     EditorMode mode;
     EditorBuffer *buffers;
     EditorBuffer *activeBuffer;
@@ -91,41 +93,11 @@ static EditorConfig editorConfig = {
     .cursorWidth = 1,
     .cursorHeight = 1,
     .cursorBlinkSpeed = 500,
-    .windowWidth = 1024,
-    .windowHeight = 768,
     .mode = COMMAND,
-    .statusLineColor = {
-        .r = 0,
-        .g = 0,
-        .b = 0,
-        .a = 255
-    },
-    .commandLineColor = {
-        .r = 150,
-        .g = 0,
-        .b = 180,
-        .a = 255
-    },
-    .tabColor = {
-        .r = 0,
-        .g = 0,
-        .b = 0,
-        .a = 255
-    },
-    .frameColor = {
-        .r = 187,
-        .g = 175,
-        .b = 161,
-        .a = 255
-    },
-    .lineNumbersPanelColor = {
-        .r = 0,
-        .g = 0,
-        .b = 0,
-        .a = 255
-    },
     .titleBar = "Bees -> scratch buffer (not saved)"
 };
+
+bool parse_config_file(char *filename, EditorConfig *editorConfig);
 void handle_input(SDL_Keysym key_symbo, SDL_Event event);
 void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig);
 void draw_cursor(SDL_Renderer *ren, EditorConfig *editorConfig);
@@ -138,8 +110,91 @@ void drawLineNumbersPanel(SDL_Renderer *ren, EditorConfig *editorConfig, Vec2 po
 bool open_buffer (EditorConfig *editorConfig, char *filename, EditorBuffer *_buffer);
 void save_buffer (EditorConfig *editorConfig, char *filename);
 void recalculate_layout(EditorConfig *editorConfig);
+void hexToRGBA(char *hex, color *c);
 void loadFonts();
 
+
+
+bool parse_config_file(char *filename, EditorConfig *editorConfig){
+
+    FILE *file  = fopen("/Users/apresthus/Dev/Bees/data/config.bcfg", "r");
+    if (file == NULL){
+        printf("Error opening file: %s\n", filename);
+        return false;
+        exit(1);
+
+    }
+
+    fseek(file, 0, SEEK_END);
+    long fileSize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    char *content = malloc(fileSize + 1);
+    fread(content, fileSize, 1, file);
+    fclose(file);
+
+    content[fileSize] = '\0';
+
+
+    String_View sv = {
+        .data = content,
+        .count = fileSize
+    };
+    
+    while (sv.count > 0){
+    String_View line = sv_chop_by_delim(&sv, '\n');
+    String_View match = sv_trim_left(sv_chop_by_delim(&line, '@'));
+    if (match.count > 0){
+        String_View key = sv_trim(sv_chop_by_delim(&match, '='));
+        String_View value = sv_trim(match);
+        printf("Key: "SV_Fmt"\n", SV_Arg(key));
+        printf("Value: "SV_Fmt"\n", SV_Arg(value));
+
+        if (sv_eq(key, SV(".windowWidth"))){
+            editorConfig->windowWidth =sv_to_u64(value);
+            printf("Window width: %d\n", editorConfig->windowWidth);
+        }
+        else if (sv_eq(key, SV(".windowHeight"))){
+            editorConfig->windowHeight =sv_to_u64(value);
+        }
+        else if (sv_eq(key, SV(".titleBar"))){
+            editorConfig->titleBar = malloc(value.count + 1);
+            memcpy(editorConfig->titleBar, value.data, value.count);
+            editorConfig->titleBar[value.count] = '\0';
+        }
+        else if (sv_eq(key, SV(".statusLineColor"))){
+            hexToRGBA(value.data, &editorConfig->statusLineColor);
+        }
+        else if (sv_eq(key, SV(".commandLineColor"))){
+            hexToRGBA(value.data, &editorConfig->commandLineColor);
+
+        }
+        else if (sv_eq(key, SV(".frameColor"))){
+            hexToRGBA(value.data, &editorConfig->frameColor);
+
+        }
+        else if (sv_eq(key, SV(".tabColor"))){
+            hexToRGBA(value.data, &editorConfig->tabColor);
+        }
+
+        else if (sv_eq(key, SV(".lineNumbersPanelColor"))){
+            hexToRGBA(value.data, &editorConfig->lineNumbersPanelColor);
+
+        }
+
+        else if (sv_eq(key, SV(".defaultFontColor"))){
+            hexToRGBA(value.data, &editorConfig->defaultFontColor);
+        }
+    }
+
+    }
+
+  printf("Window Width: %d\n", editorConfig->windowWidth);
+    printf("Window Height: %d\n", editorConfig->windowHeight);
+
+    return true;
+
+}
 
 
 
@@ -191,6 +246,7 @@ void draw_editor(SDL_Renderer *ren, EditorConfig *editorConfig) {
         buffer->cursorY = bufferY + buffer->cursorY;
         buffer->posX = bufferX;
         buffer->posY = bufferY;
+        buffer->bufferColor = editorConfig->defaultBackgroundColor;
         Vec2 bufferpos = vec2(bufferX, bufferY);
         // Draw the buffer
         draw_buffer(ren, buffer);
@@ -208,7 +264,7 @@ void draw_status_line(SDL_Renderer *ren, EditorConfig *_editorConfig){
         .w = editorConfig.windowWidth,
         .h = 20
     };
-    SDL_SetRenderDrawColor(ren, editorConfig.commandLineColor.r, editorConfig.commandLineColor.g, editorConfig.commandLineColor.b, editorConfig.commandLineColor.a);
+    SDL_SetRenderDrawColor(ren, editorConfig.statusLineColor.r, editorConfig.statusLineColor.g, editorConfig.statusLineColor.b, editorConfig.statusLineColor.a);
     SDL_RenderFillRect(ren, &commandLine);
     char* string = "";
     if (editorConfig.mode == COMMAND){
@@ -217,7 +273,7 @@ void draw_status_line(SDL_Renderer *ren, EditorConfig *_editorConfig){
     else{
         string = "-INSERT-";
     }
-    SDL_Color color = {255,255,255,255};
+    SDL_Color color = {0,0,0,255};
      SDL_Surface *surface = TTF_RenderUTF8_Solid(editorConfig.font, string, color);
     SDL_Texture *texture = SDL_CreateTextureFromSurface(ren, surface);
     SDL_Rect rect = {
@@ -241,6 +297,16 @@ void drawLineNumbersPanel(SDL_Renderer *ren, EditorConfig *editorConfig, Vec2 bu
     };
     SDL_SetRenderDrawColor(ren, editorConfig->lineNumbersPanelColor.r, editorConfig->lineNumbersPanelColor.g, editorConfig->lineNumbersPanelColor.b, editorConfig->lineNumbersPanelColor.a);
     SDL_RenderFillRect(ren, &lineNumbersPanel);
+}
+
+void hexToRGBA(char *hex, color *c) {
+    char colorHex[7];
+    strncpy(colorHex, hex + 1, 6);
+    colorHex[6] = '\0';
+    c->r = strtol(colorHex, NULL, 16) >> 16;
+    c->g = (strtol(colorHex, NULL, 16) >> 8) & 0xFF;
+    c->b = strtol(colorHex, NULL, 16) & 0xFF;
+    c->a = 255; // hardcoding no transparency for now
 }
 
 bool open_buffer (EditorConfig *editorConfig, char *filename, EditorBuffer *_buffer){
@@ -280,8 +346,13 @@ void loadFonts(){
 }
 
 void draw_text(SDL_Renderer *ren, EditorBuffer *buffer ,Vec2 pos, char *text){
+    // check if buffer has specified color, if not use default
 
-    SDL_Color color = {255, 255, 0, 255};
+    SDL_Color color;
+    color.r = editorConfig.defaultFontColor.r;  
+    color.g = editorConfig.defaultFontColor.g;  
+    color.b = editorConfig.defaultFontColor.b;  
+
     SDL_Surface *surface = TTF_RenderUTF8_Solid_Wrapped(editorConfig.font, text, color, 0);
     SDL_Texture *texture = SDL_CreateTextureFromSurface(ren, surface);
     SDL_Rect rect = {
@@ -325,7 +396,10 @@ void handle_input(SDL_Keysym key_symbol, SDL_Event event){
 
 }
 
-int main(void){
+int main( int argc, char* args[] ){
+
+      char *filename = args[1];
+     printf("%s", filename);
 
 EditorBuffer buffer = {
     .id = 0,
@@ -377,6 +451,11 @@ editorConfig.bufferCount = 1;
 editorConfig.buffers[0] = buffer;
 //editorConfig.buffers[1] = buffer2;
 
+EditorConfig testConfig;
+if (parse_config_file("", &editorConfig) != true){
+    printf("Error parsing config file\n");
+    exit(1);
+}
 
 if (SDL_Init(SDL_INIT_VIDEO) != 0){
     printf("SDL_Init Error: %s\n", SDL_GetError());

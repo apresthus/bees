@@ -5,5 +5,5 @@
 /build/debug/*
 /build/release/*
 /.vscode/*
-/data/*
+/data/test.txt
 

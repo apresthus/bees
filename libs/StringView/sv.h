@@ -71,6 +71,7 @@ SVDEF bool sv_eq_ignorecase(String_View a, String_View b);
 SVDEF bool sv_starts_with(String_View sv, String_View prefix);
 SVDEF bool sv_ends_with(String_View sv, String_View suffix);
 SVDEF uint64_t sv_to_u64(String_View sv);
+SVDEF uint8_t sv_to_u8(String_View sv);
 uint64_t sv_chop_u64(String_View *sv);
 
 #endif  // SV_H_
@@ -282,6 +283,18 @@ SVDEF uint64_t sv_to_u64(String_View sv)
 
     for (size_t i = 0; i < sv.count && isdigit(sv.data[i]); ++i) {
         result = result * 10 + (uint64_t) sv.data[i] - '0';
+    }
+
+    return result;
+}
+
+//adding to uint8_t
+SVDEF uint8_t sv_to_u8(String_View sv)
+{
+    uint8_t result = 0;
+
+    for (size_t i = 0; i < sv.count && isdigit(sv.data[i]); ++i) {
+        result = result * 10 + (uint8_t) sv.data[i] - '0';
     }
 
     return result;
